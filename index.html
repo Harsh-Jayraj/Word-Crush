@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Crush</title>
+    <!-- CSS file linked -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>WORD✧CRUSH</h1>
+
+    <!-- SETUP PANEL (initial) -->
+    <div id="setup-panel">
+        <h2>⚘ Delightful or Doomed ⚘</h2>
+        <p style="color:#b090a0; margin-bottom:20px;">weave words before the wilting</p>
+        <input type="text" id="team-name" placeholder="Grave name" autocomplete="off" />
+        <br>
+        <button id="start-btn">Enter the Grave</button>
+    </div>
+
+    <!-- GAME UI (hidden until start) -->
+    <div id="game-ui">
+        <div id="scoreboard">
+            <span id="display-team">ghost</span>
+            <span class="timer-box" id="display-time">10:00</span>
+            <span class="score-box" id="display-score">0 tears</span>
+        </div>
+        
+        <div id="message-area">
+            <span id="msg-text">trace a doomed path...</span>
+            <div class="spinner" id="loading-spinner"></div>
+        </div>
+
+        <div id="grid-container"></div>
+    </div>
+
+    <!-- GAME OVER MODAL -->
+    <div id="game-over-modal">
+        <h2 style="color:#f5d5e0">❝ time falls silent ❞</h2>
+        <p style="color:#bdaab3;">final score (tears)</p>
+        <div id="final-score">0</div>
+        <button onclick="location.reload()">wither / rebirth</button>
+    </div>
+
+    <!-- JavaScript file linked -->
+    <script src="script.js"></script>
+</body>
+</html>
