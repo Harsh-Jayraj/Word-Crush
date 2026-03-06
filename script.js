@@ -1,23 +1,22 @@
-// script.js – Word Crush, delightfully doomed edition
+// script.js – Fully responsive with touch support
 
-/********** CONFIG **********/
+/********** CONFIG (will be updated on resize) **********/
 const CONFIG = {
     gridSize: 7,
-    tileSize: 60,
+    tileSize: 60,          // initial, overridden
     gap: 8,
     minWordLen: 3,
-    gameDuration: 600, // 10 min
-    // letter pool (melancholy weighted)
+    gameDuration: 600,
     letters: "EEEEEEEEEEEEAAAAAAAAAIIIIIIIIIOOOOOOOONNNNNNRRRRRRTTTTTTLLLLSSSSUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ",
     bonusX3: ['Q','Z','X','J'],
     bonusX2: ['K','V','F','H','W','Y']
 };
 
 /********** STATE **********/
-let grid = [];               // 2D array of { id, char, mult, row, col, isNew }
+let grid = [];
 let score = 0;
 let isDragging = false;
-let selectedPath = [];       // [{r, c} ...]
+let selectedPath = [];
 let timerInterval;
 let timeRemaining = CONFIG.gameDuration;
 let gameActive = false;
@@ -37,7 +36,7 @@ const els = {
     teamName: document.getElementById('display-team')
 };
 
-/********** START EVENT **********/
+/********** START **********/
 document.getElementById('start-btn').addEventListener('click', () => {
     const name = document.getElementById('team-name').value.trim() || "doomed soul";
     els.teamName.innerText = name;
@@ -50,8 +49,37 @@ document.getElementById('start-btn').addEventListener('click', () => {
 function initGame() {
     gameActive = true;
     createInitialGrid();
+    updateTileSize();          // sets initial responsive size
     renderGrid();
     startTimer();
+    window.addEventListener('resize', handleResize);
+}
+
+// Cleanup resize listener on game over? We'll keep it but check gameActive.
+function handleResize() {
+    if (!gameActive) return;
+    updateTileSize();
+    renderGrid();
+}
+
+// Calculate tile size based on container width (with min/max)
+function updateTileSize() {
+    const container = els.grid;
+    if (!container) return;
+    const containerWidth = container.clientWidth;
+    // desired tile size = (containerWidth - (gridSize-1)*gap) / gridSize
+    // but we want to keep gap proportional too. We'll set gap to 8px minimum, but scale with screen.
+    const baseGap = 8;
+    const maxTileSize = 80;    // for large screens
+    const minTileSize = 40;    // for small phones
+
+    let newTileSize = Math.floor((containerWidth - (CONFIG.gridSize - 1) * baseGap) / CONFIG.gridSize);
+    newTileSize = Math.min(maxTileSize, Math.max(minTileSize, newTileSize));
+    
+    CONFIG.tileSize = newTileSize;
+    // update CSS variable
+    document.documentElement.style.setProperty('--tile-size', newTileSize + 'px');
+    document.documentElement.style.setProperty('--gap', baseGap + 'px');
 }
 
 /********** TILE GENERATION **********/
@@ -60,7 +88,6 @@ function generateTile(r, c) {
     let mult = 1;
     if (CONFIG.bonusX3.includes(char)) mult = 3;
     else if (CONFIG.bonusX2.includes(char)) mult = 2;
-
     return {
         id: `tile-${uniqueIdCounter++}`,
         char,
@@ -97,7 +124,6 @@ function renderGrid() {
             const y = r * (CONFIG.tileSize + CONFIG.gap);
 
             if (!tileEl) {
-                // create new tile
                 tileEl = document.createElement('div');
                 tileEl.id = cell.id;
                 tileEl.className = 'tile';
@@ -111,7 +137,6 @@ function renderGrid() {
                     tileEl.appendChild(badge);
                 }
 
-                // new tiles fall from above (doomed entrance)
                 if (cell.isNew) {
                     tileEl.style.transform = `translate(${x}px, -100px)`;
                     cell.isNew = false;
@@ -119,26 +144,27 @@ function renderGrid() {
                     tileEl.style.transform = `translate(${x}px, ${y}px)`;
                 }
 
-                // attach drag events
+                // Mouse events
                 tileEl.addEventListener('mousedown', (e) => startDrag(e, cell));
                 tileEl.addEventListener('mouseenter', (e) => enterDrag(e, cell));
+                // Touch events
+                tileEl.addEventListener('touchstart', (e) => handleTouchStart(e, cell));
+                tileEl.addEventListener('touchmove', (e) => handleTouchMove(e));
+                tileEl.addEventListener('touchend', handleTouchEnd);
 
                 els.grid.appendChild(tileEl);
-                void tileEl.offsetWidth; // force reflow
+                void tileEl.offsetWidth;
             }
 
-            // update position (triggers CSS transition)
             tileEl.style.transform = `translate(${x}px, ${y}px)`;
             tileEl.dataset.row = r;
             tileEl.dataset.col = c;
             tileEl.dataset.active = "true";
 
-            // remove temporary visual classes
             tileEl.classList.remove('selected', 'valid-word', 'invalid-word');
         }
     }
 
-    // remove crushed / missing tiles
     existingTiles.forEach(t => {
         if (t.dataset.active === "false") {
             t.classList.add('crushed');
@@ -148,14 +174,48 @@ function renderGrid() {
 
     document.removeEventListener('mouseup', endDrag);
     document.addEventListener('mouseup', endDrag);
+    document.removeEventListener('touchend', endDragTouch);
+    document.addEventListener('touchend', endDragTouch);
 }
 
-/********** DRAG HANDLING **********/
+/********** TOUCH HANDLERS **********/
+function handleTouchStart(e, cellData) {
+    e.preventDefault();   // prevent scrolling
+    startDrag(e, cellData);
+}
+
+function handleTouchMove(e) {
+    e.preventDefault();
+    if (!isDragging || !gameActive) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (element && element.classList.contains('tile')) {
+        const row = element.dataset.row;
+        const col = element.dataset.col;
+        if (row !== undefined && col !== undefined) {
+            const cellData = grid[parseInt(row)][parseInt(col)];
+            if (cellData) enterDrag(e, cellData);
+        }
+    }
+}
+
+function handleTouchEnd(e) {
+    e.preventDefault();
+    endDrag();
+}
+
+// wrapper for touchend to match mouseup
+function endDragTouch(e) {
+    if (e) e.preventDefault();
+    endDrag();
+}
+
+/********** DRAG LOGIC (unchanged but reusable) **********/
 function startDrag(e, cellData) {
     if (!gameActive) return;
     isDragging = true;
     selectedPath = [];
-
     document.querySelectorAll('.tile').forEach(t => t.classList.remove('selected'));
     addSelection(cellData);
 }
@@ -182,7 +242,6 @@ function addSelection(cellData) {
     const r = cellData.row;
     const c = cellData.col;
 
-    // check if already in path (allow backtrack pop)
     const index = selectedPath.findIndex(p => p.r === r && p.c === c);
     if (index !== -1) {
         if (index === selectedPath.length - 2) {
@@ -193,19 +252,17 @@ function addSelection(cellData) {
         return;
     }
 
-    // adjacency check
     if (selectedPath.length > 0) {
         const last = selectedPath[selectedPath.length - 1];
         if (Math.abs(last.r - r) > 1 || Math.abs(last.c - c) > 1) return;
     }
 
-    // add to path
     selectedPath.push({ r, c });
     const el = document.getElementById(cellData.id);
     if (el) el.classList.add('selected');
 }
 
-/********** WORD VALIDATION & SCORING (updated for longer words) **********/
+/********** WORD VALIDATION & SCORING (unchanged) **********/
 async function validateWord(word) {
     els.msg.innerText = `weaving "${word}" ...`;
     els.spinner.style.display = 'block';
@@ -227,18 +284,13 @@ async function validateWord(word) {
 }
 
 function processSuccess(word) {
-    // --- NEW SCORING RULE: longer words give exponentially more tears ---
-    // base = (length - 2) * length   (for words >3, this rewards longer combos)
-    // minimum 1 point
-    let basePoints = word.length - 2;  // was simple
-    // Delightfully doomed twist: words of length >=5 get quadratic love
+    let basePoints = word.length - 2;
     if (word.length >= 5) {
-        basePoints = (word.length - 2) * word.length;  // 5 -> 3*5=15, 7->5*7=35 etc.
+        basePoints = (word.length - 2) * word.length;
     } else if (word.length === 4) {
-        basePoints = 4;  // 4 letter = 4pts (instead of 2)
-    } // length 3 remains 1 point
+        basePoints = 4;
+    }
 
-    // apply multiplier from path
     let multiplier = 1;
     selectedPath.forEach(p => multiplier *= grid[p.r][p.c].mult);
 
@@ -247,7 +299,6 @@ function processSuccess(word) {
     els.score.innerText = `${score} tears`;
     els.msg.innerText = `❝${word}❞ +${totalPoints} tears`;
 
-    // visual success
     selectedPath.forEach(p => {
         const el = document.getElementById(grid[p.r][p.c].id);
         if (el) el.classList.add('valid-word');
@@ -265,14 +316,12 @@ function processFail(word) {
     setTimeout(renderGrid, 500);
 }
 
-/********** GRAVITY (column collapse + new tiles) **********/
+/********** GRAVITY (column collapse) **********/
 function applyGravity() {
-    // 1. mark selected tiles as null
     selectedPath.forEach(p => {
         grid[p.r][p.c] = null;
     });
 
-    // 2. shift each column
     for (let c = 0; c < CONFIG.gridSize; c++) {
         let columnTiles = [];
         for (let r = 0; r < CONFIG.gridSize; r++) {
@@ -281,10 +330,9 @@ function applyGravity() {
 
         const missing = CONFIG.gridSize - columnTiles.length;
         for (let i = 0; i < missing; i++) {
-            columnTiles.unshift(generateTile(0, c)); // row temporary
+            columnTiles.unshift(generateTile(0, c));
         }
 
-        // reassign rows
         for (let r = 0; r < CONFIG.gridSize; r++) {
             grid[r][c] = columnTiles[r];
             grid[r][c].row = r;
@@ -309,6 +357,7 @@ function startTimer() {
             gameActive = false;
             els.finalScore.innerText = score;
             els.modal.style.display = 'flex';
+            window.removeEventListener('resize', handleResize);
         }
     }, 1000);
 }
