@@ -268,7 +268,7 @@ async function validateWord(word) {
     els.spinner.style.display = 'block';
 
     try {
-        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+        const res = await fetch(`https://freedictionaryapi.com/api/v1/entries/en/${word}`);
         els.spinner.style.display = 'none';
 
         if (res.ok) {
